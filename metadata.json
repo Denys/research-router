@@ -1,0 +1,5 @@
+{
+  "name": "Research Router",
+  "description": "A clean, fast, citation-focused chatbot for deep web research supporting multiple LLM providers.",
+  "requestFramePermissions": []
+}
