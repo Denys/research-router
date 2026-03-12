@@ -1,14 +1,29 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useChat } from '../context/ChatContext';
-import { X, Key, Save, CheckCircle2, AlertCircle } from 'lucide-react';
-import { APIKeys } from '../types';
+import { AlertCircle, CheckCircle2, Key, Save, X } from 'lucide-react';
+import type { APIKeys } from '../types';
+
+const statusText: Record<string, string> = {
+  both: 'Configured via browser key and server env',
+  local: 'Configured via browser key only',
+  environment: 'Configured via server environment only',
+  none: 'Not configured yet',
+};
 
 export const SettingsModal = () => {
-  const { isSettingsOpen, setIsSettingsOpen, apiKeys, setApiKeys } = useChat();
+  const { isSettingsOpen, setIsSettingsOpen, apiKeys, setApiKeys, providerAvailability } = useChat();
   const [localKeys, setLocalKeys] = useState<APIKeys>(apiKeys);
   const [saved, setSaved] = useState(false);
 
-  if (!isSettingsOpen) return null;
+  useEffect(() => {
+    if (isSettingsOpen) {
+      setLocalKeys(apiKeys);
+    }
+  }, [apiKeys, isSettingsOpen]);
+
+  if (!isSettingsOpen) {
+    return null;
+  }
 
   const handleSave = () => {
     setApiKeys(localKeys);
@@ -17,11 +32,11 @@ export const SettingsModal = () => {
   };
 
   const providers = [
-    { id: 'pplx', name: 'Perplexity API Key', placeholder: 'pplx-...' },
-    { id: 'openai', name: 'OpenAI API Key', placeholder: 'sk-...' },
-    { id: 'anthropic', name: 'Anthropic API Key', placeholder: 'sk-ant-...' },
-    { id: 'gemini', name: 'Gemini API Key', placeholder: 'AIza...' },
-  ];
+    { id: 'pplx', providerId: 'perplexity', name: 'Perplexity API Key', placeholder: 'pplx-...' },
+    { id: 'openai', providerId: 'openai', name: 'OpenAI API Key', placeholder: 'sk-...' },
+    { id: 'anthropic', providerId: 'anthropic', name: 'Anthropic API Key', placeholder: 'sk-ant-...' },
+    { id: 'gemini', providerId: 'gemini', name: 'Gemini API Key', placeholder: 'AIza...' },
+  ] as const;
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -31,7 +46,7 @@ export const SettingsModal = () => {
             <Key size={20} className="text-indigo-600" />
             Provider Settings
           </h2>
-          <button 
+          <button
             onClick={() => setIsSettingsOpen(false)}
             className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
           >
@@ -43,31 +58,44 @@ export const SettingsModal = () => {
           <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 flex gap-3 text-indigo-800 text-sm">
             <AlertCircle size={20} className="shrink-0 text-indigo-600" />
             <div>
-              <p className="font-medium mb-1">API Key Configuration</p>
+              <p className="font-medium mb-1">Provider configuration</p>
               <p className="text-indigo-700/80">
-                Keys entered here are stored locally in your browser and sent securely to the backend. 
-                If left blank, the system will attempt to use environment variables configured on the server.
+                Browser keys stay in local storage. Server environment keys are detected via the new provider-status endpoint and never exposed in full.
               </p>
             </div>
           </div>
 
           <div className="space-y-4">
-            {providers.map(p => (
-              <div key={p.id} className="grid grid-cols-1 md:grid-cols-3 gap-2 md:gap-4 items-center">
-                <label className="text-sm font-medium text-slate-700 md:text-right">
-                  {p.name}
-                </label>
-                <div className="md:col-span-2 relative">
-                  <input
-                    type="password"
-                    value={localKeys[p.id as keyof APIKeys]}
-                    onChange={(e) => setLocalKeys({ ...localKeys, [p.id]: e.target.value })}
-                    placeholder={p.placeholder}
-                    className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-mono text-sm"
-                  />
+            {providers.map((provider) => {
+              const status = providerAvailability[provider.providerId];
+
+              return (
+                <div key={provider.id} className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 items-start border border-slate-100 rounded-xl p-4">
+                  <div className="md:text-right space-y-1">
+                    <label className="text-sm font-medium text-slate-700">{provider.name}</label>
+                    <div className="flex items-center gap-1.5 md:justify-end text-xs text-slate-500">
+                      <CheckCircle2 size={14} className={status.configured ? 'text-emerald-500' : 'text-slate-300'} />
+                      <span>{statusText[status.source]}</span>
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2 space-y-2">
+                    <input
+                      type="password"
+                      value={localKeys[provider.id]}
+                      onChange={(event) => setLocalKeys({ ...localKeys, [provider.id]: event.target.value })}
+                      placeholder={provider.placeholder}
+                      className="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all font-mono text-sm"
+                    />
+                    <p className="text-xs text-slate-500">
+                      {status.supportsWebGrounding
+                        ? 'Used for live web-grounded routing when research intent is detected.'
+                        : 'Available for model-only tasks or fallback responses when web-grounded routing is unavailable.'}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 instruction:
 Build a production-minded web research chatbot application called "Research Router".
 PRIMARY GOAL
@@ -316,7 +315,8 @@ Thinking Process Visualization:
 When using a thinking model or when "Extended thinking" is enabled, you will now see a Thinking Process block appear above the final response. It streams the model's internal reasoning steps in real-time so you can see what it's doing before it provides the final answer.
 Append Instructions Mid-Generation:
 While the model is processing your request, a new input field appears below the chat input saying "Add instructions while thinking...".
-=======
+You can type additional context or instructions here and press the + button (or Enter) to inject them into the ongoing research process.
+
 instruction:
 update llm selection with modern models from openai and anthropic -
 chatgpt 5.4 thinking, 5.3 instant, 5.2 thinking and 5.2 instant.
@@ -368,5 +368,4 @@ Thinking Process Visualization:
 When using a thinking model or when "Extended thinking" is enabled, you will now see a Thinking Process block appear above the final response. It streams the model's internal reasoning steps in real-time so you can see what it's doing before it provides the final answer.
 Append Instructions Mid-Generation:
 While the model is processing your request, a new input field appears below the chat input saying "Add instructions while thinking...".
->>>>>>> cad815e66c45a32d0494b630f73f5811c7313b34
 You can type additional context or instructions here and press the + button (or Enter) to inject them into the ongoing research process.
