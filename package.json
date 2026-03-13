@@ -4,12 +4,13 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "node --experimental-strip-types server.ts",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
+    "test": "node --experimental-strip-types tests/run-tests.ts",
     "lint": "tsc --noEmit",
-    "start": "node server.ts"
+    "start": "node --experimental-strip-types server.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

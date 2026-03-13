@@ -2,23 +2,19 @@
 
 ## Verified gaps
 
-1. **Prompt-time provider gating by configured keys is missing**.
-   - Request: models/providers should become selectable once corresponding key is configured.
-   - Current: providers can be selected in UI regardless of key presence; key failures happen only at request-time from API errors.
+> Note: OpenRouter is now in scope and implemented. Groq remains out of scope in this repository pass.
 
-2. **Mid-generation instruction injection is only partially implemented**.
+1. **Mid-generation instruction injection is only partially implemented**.
    - Request: add instructions into the _current_ research process while model is still processing.
    - Current: UI accepts extra instructions, but they are appended as local system notes and are not injected into already-running provider streams.
 
-3. **Thinking/search visualization is simulated, not provider-grounded**.
+2. **Thinking/search visualization is simulated, not provider-grounded**.
    - Request: visualize real ongoing thinking/search process.
    - Current: backend emits synthetic "thinking steps"; this can diverge from actual provider/tool operations.
 
-4. **Research router policy is incomplete vs original spec**.
+3. **Research router policy is incomplete vs original spec**.
    - Missing from implementation: fallback warning badge semantics, robust routing classifier for "current/latest/news/prices/laws/releases" signals, and explicit web-grounded vs fallback labeling logic tied to actual retrieval.
 
-5. **Provider scope clarification**.
-   - OpenRouter and Groq are intentionally excluded by product decision and are therefore not treated as non-conformities for this implementation scope.
 
 ## Fixes completed in this pass
 

@@ -1,18 +1,30 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useChat } from '../context/ChatContext';
-import { Provider, Mode } from '../types';
-import { Settings, ChevronDown, Zap, BookOpen, Search, Scale, Check, Info } from 'lucide-react';
+import type { Mode, Provider } from '../types';
+import { BookOpen, Check, ChevronDown, Info, Scale, Search, Settings, Zap } from 'lucide-react';
 import clsx from 'clsx';
 
+const providerSourceLabel: Record<string, string> = {
+  both: 'Browser + env',
+  local: 'Browser key',
+  environment: 'Server env',
+  none: 'Not configured',
+};
+
 export const TopControls = () => {
-  const { 
-    selectedProviders, setSelectedProviders, 
-    selectedModels, setSelectedModels,
-    apiKeys,
-    defaultMode, setDefaultMode, 
+  const {
+    providerAvailability,
+    selectedProviders,
+    setSelectedProviders,
+    selectedModels,
+    setSelectedModels,
+    defaultMode,
+    setDefaultMode,
     setIsSettingsOpen,
-    extendedThinking, setExtendedThinking,
-    anthropicThinkingBudget, setAnthropicThinkingBudget
+    extendedThinking,
+    setExtendedThinking,
+    anthropicThinkingBudget,
+    setAnthropicThinkingBudget,
   } = useChat();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -24,62 +36,65 @@ export const TopControls = () => {
         setIsDropdownOpen(false);
       }
     };
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const providers: { id: Provider, name: string, models: string[], advice: string }[] = [
-    { 
-      id: 'perplexity', 
-      name: 'Perplexity', 
+  const providers: Array<{ id: Provider; name: string; models: string[]; advice: string }> = [
+    {
+      id: 'perplexity',
+      name: 'Perplexity',
       models: ['sonar-pro', 'sonar', 'sonar-reasoning-pro'],
-      advice: 'Best for real-time web research, current events, and citing sources.' 
+      advice: 'Strong default for web-grounded research, especially when you want dense citations quickly.',
     },
-    { 
-      id: 'openai', 
-      name: 'OpenAI', 
+    {
+      id: 'openai',
+      name: 'GPT (OpenAI)',
       models: ['gpt-5.4-thinking', 'gpt-5.3-instant', 'gpt-5.2-thinking', 'gpt-5.2-instant'],
-      advice: 'Best for general reasoning, coding, formatting, and complex logic.' 
+      advice: 'Supports web-search-backed research plus strong reasoning, coding, and formatting.',
     },
-    { 
-      id: 'anthropic', 
-      name: 'Anthropic', 
+    {
+      id: 'anthropic',
+      name: 'Claude (Anthropic)',
       models: ['claude-4.6-sonnet', 'claude-4.6-opus', 'claude-4.5-haiku'],
-      advice: 'Best for deep analysis, creative writing, and large context windows.' 
+      advice: 'Supports web-search-backed research with strong analysis and long-context writing.',
     },
-    { 
-      id: 'gemini', 
-      name: 'Gemini', 
+    {
+      id: 'gemini',
+      name: 'Gemini',
       models: ['gemini-3.1-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-flash'],
-      advice: 'Best for fast multimodal tasks, document analysis, and Google ecosystem integration.' 
+      advice: 'Supports Google-backed search grounding and fast multimodal workflows.',
+    },
+
+    {
+      id: 'openrouter',
+      name: 'OpenRouter',
+      models: ['openai/gpt-4o-mini', 'anthropic/claude-3.5-sonnet', 'google/gemini-2.5-pro'],
+      advice: 'Access multiple routed models through one API key, useful when you want broad model choice.',
     },
   ];
 
   const toggleProvider = (providerId: Provider) => {
-    const keyAvailable = providerId === 'perplexity'
-      ? Boolean(apiKeys.pplx)
-      : providerId === 'openai'
-      ? Boolean(apiKeys.openai)
-      : providerId === 'anthropic'
-      ? Boolean(apiKeys.anthropic)
-      : Boolean(apiKeys.gemini);
-
-    if (!keyAvailable) return;
+    if (!providerAvailability[providerId].configured) {
+      return;
+    }
 
     if (selectedProviders.includes(providerId)) {
       if (selectedProviders.length > 1) {
-        setSelectedProviders(selectedProviders.filter(p => p !== providerId));
+        setSelectedProviders(selectedProviders.filter((provider) => provider !== providerId));
       }
-    } else {
-      setSelectedProviders([...selectedProviders, providerId]);
+      return;
     }
+
+    setSelectedProviders([...selectedProviders, providerId]);
   };
 
   const setModel = (providerId: Provider, model: string) => {
-    setSelectedModels(prev => ({ ...prev, [providerId]: model }));
+    setSelectedModels((prev) => ({ ...prev, [providerId]: model }));
   };
 
-  const modes: { id: Mode, name: string, icon: React.ElementType }[] = [
+  const modes: Array<{ id: Mode; name: string; icon: React.ElementType }> = [
     { id: 'Quick Answer', name: 'Quick Answer', icon: Zap },
     { id: 'Research', name: 'Research', icon: BookOpen },
     { id: 'Deep Research', name: 'Deep Research', icon: Search },
@@ -94,8 +109,8 @@ export const TopControls = () => {
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             className="flex items-center gap-2 bg-slate-50 border border-slate-200 text-slate-700 py-2 pl-4 pr-3 rounded-xl focus:outline-none hover:bg-slate-100 transition-colors font-medium text-sm"
           >
-            {selectedProviders.length === 1 
-              ? providers.find(p => p.id === selectedProviders[0])?.name 
+            {selectedProviders.length === 1
+              ? providers.find((provider) => provider.id === selectedProviders[0])?.name
               : `${selectedProviders.length} Providers Selected`}
             <ChevronDown size={16} className="text-slate-400" />
           </button>
@@ -104,47 +119,57 @@ export const TopControls = () => {
             <div className="absolute top-full left-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
               <div className="p-2 bg-slate-50 border-b border-slate-100 text-xs text-slate-500 font-medium flex items-center gap-1.5">
                 <Info size={14} />
-                Select multiple for parallel search
+                Research modes use the selected provider when it supports web grounding, and only fall back when that provider is unavailable.
               </div>
               <div className="max-h-96 overflow-y-auto p-2 space-y-1">
-                {providers.map(p => {
-                  const isSelected = selectedProviders.includes(p.id);
-                  const keyAvailable = p.id === 'perplexity'
-                    ? Boolean(apiKeys.pplx)
-                    : p.id === 'openai'
-                    ? Boolean(apiKeys.openai)
-                    : p.id === 'anthropic'
-                    ? Boolean(apiKeys.anthropic)
-                    : Boolean(apiKeys.gemini);
+                {providers.map((provider) => {
+                  const isSelected = selectedProviders.includes(provider.id);
+                  const status = providerAvailability[provider.id];
+
                   return (
-                    <div key={p.id} className={clsx("p-3 rounded-lg border transition-all", isSelected ? "border-indigo-200 bg-indigo-50/50" : "border-transparent hover:bg-slate-50", !keyAvailable && "opacity-60")}>
-                      <div className="flex items-center justify-between mb-2 cursor-pointer" onClick={() => toggleProvider(p.id)}>
+                    <div
+                      key={provider.id}
+                      className={clsx(
+                        'p-3 rounded-lg border transition-all',
+                        isSelected ? 'border-indigo-200 bg-indigo-50/50' : 'border-transparent hover:bg-slate-50',
+                        !status.configured && 'opacity-60',
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-2 cursor-pointer" onClick={() => toggleProvider(provider.id)}>
                         <div className="flex items-center gap-2">
-                          <div className={clsx("w-4 h-4 rounded flex items-center justify-center border", isSelected ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 bg-white")}>
+                          <div
+                            className={clsx(
+                              'w-4 h-4 rounded flex items-center justify-center border',
+                              isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 bg-white',
+                            )}
+                          >
                             {isSelected && <Check size={12} />}
                           </div>
-                          <span className="font-medium text-sm text-slate-800">{p.name}</span>
+                          <span className="font-medium text-sm text-slate-800">{provider.name}</span>
                         </div>
+                        <span className="text-[10px] uppercase tracking-wide text-slate-400">{providerSourceLabel[status.source]}</span>
                       </div>
-                      
-                      <p className="text-xs text-slate-500 mb-3 ml-6">{p.advice}</p>
-                      {!keyAvailable && (
-                        <p className="text-[10px] text-amber-600 mb-2 ml-6">Add API key in Settings to enable this provider.</p>
+
+                      <p className="text-xs text-slate-500 mb-3 ml-6">{provider.advice}</p>
+                      {!status.configured && (
+                        <p className="text-[10px] text-amber-600 mb-2 ml-6">Add a browser key or server env var in Settings to enable this provider.</p>
                       )}
-                      
-                      {isSelected && keyAvailable && (
+
+                      {isSelected && status.configured && (
                         <div className="ml-6 mt-2 space-y-3">
                           <select
-                            value={selectedModels[p.id]}
-                            onChange={(e) => setModel(p.id, e.target.value)}
+                            value={selectedModels[provider.id]}
+                            onChange={(event) => setModel(provider.id, event.target.value)}
                             className="w-full text-xs bg-white border border-slate-200 text-slate-700 py-1.5 px-2 rounded-lg focus:outline-none focus:border-indigo-400"
                           >
-                            {p.models.map(m => (
-                              <option key={m} value={m}>{m}</option>
+                            {provider.models.map((model) => (
+                              <option key={model} value={model}>
+                                {model}
+                              </option>
                             ))}
                           </select>
-                          
-                          {((p.id === 'openai' && selectedModels[p.id]?.includes('thinking')) || p.id === 'anthropic') && (
+
+                          {((provider.id === 'openai' && selectedModels[provider.id]?.includes('thinking')) || provider.id === 'anthropic') && (
                             <>
                               <div className="flex items-center justify-between pt-1">
                                 <div className="flex flex-col">
@@ -155,21 +180,21 @@ export const TopControls = () => {
                                   type="button"
                                   onClick={() => setExtendedThinking(!extendedThinking)}
                                   className={clsx(
-                                    "relative inline-flex h-4 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2",
-                                    extendedThinking ? "bg-indigo-600" : "bg-slate-200"
+                                    'relative inline-flex h-4 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2',
+                                    extendedThinking ? 'bg-indigo-600' : 'bg-slate-200',
                                   )}
                                 >
                                   <span
                                     aria-hidden="true"
                                     className={clsx(
-                                      "pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                                      extendedThinking ? "translate-x-4" : "translate-x-0"
+                                      'pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                                      extendedThinking ? 'translate-x-4' : 'translate-x-0',
                                     )}
                                   />
                                 </button>
                               </div>
 
-                              {p.id === 'anthropic' && (
+                              {provider.id === 'anthropic' && (
                                 <div className="pt-1">
                                   <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
                                     <span>Thinking budget</span>
@@ -181,7 +206,7 @@ export const TopControls = () => {
                                     max={8192}
                                     step={512}
                                     value={anthropicThinkingBudget}
-                                    onChange={(e) => setAnthropicThinkingBudget(Number(e.target.value))}
+                                    onChange={(event) => setAnthropicThinkingBudget(Number(event.target.value))}
                                     className="w-full h-1.5 accent-indigo-600"
                                   />
                                 </div>
@@ -199,17 +224,15 @@ export const TopControls = () => {
         </div>
 
         <div className="flex items-center bg-slate-100 p-1 rounded-xl">
-          {modes.map(mode => {
+          {modes.map((mode) => {
             const Icon = mode.icon;
             return (
               <button
                 key={mode.id}
                 onClick={() => setDefaultMode(mode.id)}
                 className={clsx(
-                  "flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200",
-                  defaultMode === mode.id 
-                    ? "bg-white text-indigo-600 shadow-sm" 
-                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
+                  'flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200',
+                  defaultMode === mode.id ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50',
                 )}
               >
                 <Icon size={16} />
@@ -219,8 +242,8 @@ export const TopControls = () => {
           })}
         </div>
       </div>
-      
-      <button 
+
+      <button
         onClick={() => setIsSettingsOpen(true)}
         className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
       >
@@ -229,3 +252,4 @@ export const TopControls = () => {
     </div>
   );
 };
+

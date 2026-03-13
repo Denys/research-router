@@ -1,6 +1,8 @@
-export type Provider = 'perplexity' | 'openai' | 'anthropic' | 'gemini';
+export type Provider = 'perplexity' | 'openai' | 'anthropic' | 'gemini' | 'openrouter';
 export type Mode = 'Quick Answer' | 'Research' | 'Deep Research' | 'Compare Sources';
 export type SearchSource = 'web' | 'social' | 'academic' | 'github' | 'notebooklm' | 'shopping';
+export type ProviderStatusSource = 'none' | 'local' | 'environment' | 'both';
+export type AnswerType = 'web-grounded' | 'model-only' | 'fallback';
 
 export interface Citation {
   id: number;
@@ -8,6 +10,14 @@ export interface Citation {
   domain: string;
   title?: string;
 }
+
+export interface ProviderAvailability {
+  configured: boolean;
+  source: ProviderStatusSource;
+  supportsWebGrounding: boolean;
+}
+
+export type ProviderAvailabilityMap = Record<Provider, ProviderAvailability>;
 
 export interface Message {
   id: string;
@@ -17,8 +27,11 @@ export interface Message {
   citations?: Citation[];
   provider?: Provider;
   model?: string;
-  grounded?: boolean;
-  fallbackUsed?: boolean;
+  answerType?: AnswerType;
+  requestedProvider?: Provider;
+  resolvedProvider?: Provider;
+  fallbackReason?: string;
+  weakGrounding?: boolean;
   confidence?: 'low' | 'medium' | 'high';
   thinking?: string;
 }
@@ -38,4 +51,5 @@ export interface APIKeys {
   openai: string;
   anthropic: string;
   gemini: string;
+  openrouter: string;
 }
