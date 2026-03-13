@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "test": "node --experimental-strip-types tests/researchRouting.test.ts",
+    "test": "node --experimental-strip-types tests/run-tests.ts",
     "lint": "tsc --noEmit",
     "start": "node --experimental-strip-types server.ts"
   },

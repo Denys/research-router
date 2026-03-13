@@ -46,25 +46,25 @@ export const TopControls = () => {
       id: 'perplexity',
       name: 'Perplexity',
       models: ['sonar-pro', 'sonar', 'sonar-reasoning-pro'],
-      advice: 'Used for web-grounded research when the request needs current information or citations.',
+      advice: 'Strong default for web-grounded research, especially when you want dense citations quickly.',
     },
     {
       id: 'openai',
       name: 'OpenAI',
       models: ['gpt-5.4-thinking', 'gpt-5.3-instant', 'gpt-5.2-thinking', 'gpt-5.2-instant'],
-      advice: 'Best for general reasoning, coding, formatting, and complex logic.',
+      advice: 'Supports web-search-backed research plus strong reasoning, coding, and formatting.',
     },
     {
       id: 'anthropic',
       name: 'Anthropic',
       models: ['claude-4.6-sonnet', 'claude-4.6-opus', 'claude-4.5-haiku'],
-      advice: 'Best for deep analysis, creative writing, and large context windows.',
+      advice: 'Supports web-search-backed research with strong analysis and long-context writing.',
     },
     {
       id: 'gemini',
       name: 'Gemini',
       models: ['gemini-3.1-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-flash'],
-      advice: 'Best for fast multimodal tasks and Google ecosystem workflows.',
+      advice: 'Supports Google-backed search grounding and fast multimodal workflows.',
     },
   ];
 
@@ -112,7 +112,7 @@ export const TopControls = () => {
             <div className="absolute top-full left-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden">
               <div className="p-2 bg-slate-50 border-b border-slate-100 text-xs text-slate-500 font-medium flex items-center gap-1.5">
                 <Info size={14} />
-                Research modes auto-route through Perplexity when live web grounding is available.
+                Research modes use the selected provider when it supports web grounding, and only fall back when that provider is unavailable.
               </div>
               <div className="max-h-96 overflow-y-auto p-2 space-y-1">
                 {providers.map((provider) => {
@@ -245,3 +245,4 @@ export const TopControls = () => {
     </div>
   );
 };
+

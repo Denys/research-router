@@ -36,6 +36,15 @@ const answerBadgeLabels = {
   fallback: 'Fallback',
 } as const;
 
+const resizeTextarea = (element: HTMLTextAreaElement | null, maxHeight: number) => {
+  if (!element) {
+    return;
+  }
+
+  element.style.height = '0px';
+  element.style.height = `${Math.min(element.scrollHeight, maxHeight)}px`;
+};
+
 const renderProviderLine = (message: Message) => {
   const requested = message.requestedProvider || message.provider || 'unknown';
   const resolved = message.resolvedProvider || message.provider || requested;
@@ -66,6 +75,8 @@ export const ChatPanel = () => {
   const [isSourcesOpen, setIsSourcesOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sourcesRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const instructionRef = useRef<HTMLTextAreaElement>(null);
 
   const availableSources: Array<{ id: SearchSource; name: string; icon: React.ElementType }> = [
     { id: 'web', name: 'Web', icon: Globe },
@@ -79,6 +90,14 @@ export const ChatPanel = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeConversation?.messages]);
+
+  useEffect(() => {
+    resizeTextarea(inputRef.current, 220);
+  }, [input]);
+
+  useEffect(() => {
+    resizeTextarea(instructionRef.current, 140);
+  }, [instructionInput, isGenerating]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -125,6 +144,20 @@ export const ChatPanel = () => {
     setInstructionInput('');
   };
 
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      void handleSubmit(event);
+    }
+  };
+
+  const handleInstructionKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleAppendInstruction(event);
+    }
+  };
+
   if (!activeConversation) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 text-slate-500">
@@ -161,7 +194,7 @@ export const ChatPanel = () => {
 
   return (
     <div className="flex-1 flex flex-col bg-slate-50 relative h-full overflow-hidden">
-      <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-32">
+      <div className="flex-1 overflow-y-auto p-6 space-y-8 pb-72">
         {activeConversation.messages.map((message) => (
           <div key={message.id} className={clsx('flex gap-4 max-w-4xl mx-auto', message.role === 'user' ? 'justify-end' : 'justify-start')}>
             {message.role === 'assistant' && (
@@ -172,7 +205,7 @@ export const ChatPanel = () => {
 
             <div
               className={clsx(
-                'rounded-2xl px-6 py-4 max-w-[85%] shadow-sm',
+                'rounded-2xl px-6 py-4 max-w-[85%] shadow-sm overflow-hidden',
                 message.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-sm' : 'bg-white border border-slate-200 text-slate-800 rounded-tl-sm',
               )}
             >
@@ -212,13 +245,24 @@ export const ChatPanel = () => {
                     <Loader2 size={14} className="animate-spin" />
                     Thinking Process
                   </div>
-                  <div className="text-sm text-slate-600 whitespace-pre-wrap font-mono">{message.thinking}</div>
+                  <div className="text-sm text-slate-600 whitespace-pre-wrap break-words font-mono">{message.thinking}</div>
                 </div>
               )}
 
-              <div className={clsx('prose prose-sm max-w-none', message.role === 'user' ? 'prose-invert' : 'prose-slate')}>
+              <div className={clsx('prose prose-sm max-w-none break-words prose-pre:whitespace-pre-wrap prose-pre:break-words prose-code:break-words prose-a:break-all', message.role === 'user' ? 'prose-invert' : 'prose-slate')}>
                 {message.content ? (
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      a: ({ node: _node, ...props }) => (
+                        <a {...props} target="_blank" rel="noopener noreferrer" className="break-all text-inherit underline decoration-indigo-300 underline-offset-2" />
+                      ),
+                      p: ({ node: _node, ...props }) => <p {...props} className="whitespace-pre-wrap break-words" />,
+                      li: ({ node: _node, ...props }) => <li {...props} className="break-words" />,
+                    }}
+                  >
+                    {message.content}
+                  </ReactMarkdown>
                 ) : (
                   <div className="flex items-center gap-2 text-slate-400">
                     <Loader2 size={16} className="animate-spin" />
@@ -233,7 +277,7 @@ export const ChatPanel = () => {
                     <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                       <FileText size={14} /> Sources ({message.citations.length})
                     </span>
-                    <button onClick={() => setIsRightDrawerOpen(true)} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+                    <button type="button" onClick={() => setIsRightDrawerOpen(true)} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium cursor-pointer">
                       View All
                     </button>
                   </div>
@@ -255,8 +299,9 @@ export const ChatPanel = () => {
                     ))}
                     {message.citations.length > 3 && (
                       <button
+                        type="button"
                         onClick={() => setIsRightDrawerOpen(true)}
-                        className="inline-flex items-center px-2.5 py-1 bg-slate-50 text-slate-500 rounded-md text-xs border border-slate-200 hover:bg-slate-100"
+                        className="inline-flex items-center px-2.5 py-1 bg-slate-50 text-slate-500 rounded-md text-xs border border-slate-200 hover:bg-slate-100 cursor-pointer"
                       >
                         +{message.citations.length - 3} more
                       </button>
@@ -276,20 +321,22 @@ export const ChatPanel = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent">
-        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto relative">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-slate-50 via-slate-50 to-transparent">
+        <form onSubmit={handleSubmit} className="pointer-events-auto max-w-4xl mx-auto relative">
           <div className="relative bg-white border border-slate-300 rounded-2xl shadow-lg focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent transition-all">
-            <input
+            <textarea
               id="chat-input"
-              type="text"
+              ref={inputRef}
+              rows={1}
               value={input}
               onChange={(event) => setInput(event.target.value)}
+              onKeyDown={handleInputKeyDown}
               placeholder="Ask a question or start research..."
-              className="w-full bg-transparent text-slate-800 pl-6 pr-28 py-4 focus:outline-none"
+              className="w-full bg-transparent text-slate-800 pl-6 pr-28 py-4 focus:outline-none resize-none overflow-y-auto leading-6 whitespace-pre-wrap break-words"
               disabled={isSending || isOptimizing}
             />
 
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            <div className="absolute right-2 bottom-2 flex items-end gap-1">
               <button
                 type="button"
                 onClick={handleOptimize}
@@ -322,24 +369,20 @@ export const ChatPanel = () => {
 
           {isGenerating && (
             <div className="mt-3 relative bg-white border border-indigo-200 rounded-xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 transition-all">
-              <input
-                type="text"
+              <textarea
+                ref={instructionRef}
+                rows={1}
                 value={instructionInput}
                 onChange={(event) => setInstructionInput(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    handleAppendInstruction(event);
-                  }
-                }}
+                onKeyDown={handleInstructionKeyDown}
                 placeholder="Add instructions while thinking..."
-                className="w-full bg-transparent text-sm text-slate-800 pl-4 pr-12 py-2.5 focus:outline-none"
+                className="w-full bg-transparent text-sm text-slate-800 pl-4 pr-12 py-2.5 focus:outline-none resize-none overflow-y-auto whitespace-pre-wrap break-words"
               />
               <button
                 type="button"
                 onClick={handleAppendInstruction}
                 disabled={!instructionInput.trim()}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 bg-indigo-100 hover:bg-indigo-200 disabled:bg-slate-100 text-indigo-600 disabled:text-slate-400 rounded-lg flex items-center justify-center transition-colors"
+                className="absolute right-1.5 bottom-1.5 w-7 h-7 bg-indigo-100 hover:bg-indigo-200 disabled:bg-slate-100 text-indigo-600 disabled:text-slate-400 rounded-lg flex items-center justify-center transition-colors"
               >
                 <Plus size={16} />
               </button>

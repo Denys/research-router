@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type { APIKeys, Conversation, Message, Mode, Provider, ProviderAvailabilityMap, SearchSource } from '../types.ts';
 import { buildServerProviderStatus, mergeProviderAvailability, resolveRoutingDecision } from '../lib/researchRouting.ts';
+import { createSseParser } from '../lib/sse.ts';
 
 interface ChatContextType {
   conversations: Conversation[];
@@ -50,6 +51,14 @@ const defaultApiKeys: APIKeys = {
 };
 
 const defaultProviderStatus = buildServerProviderStatus({});
+
+const toCitationDomain = (url: string): string => {
+  try {
+    return new URL(url).hostname.replace('www.', '');
+  } catch {
+    return url;
+  }
+};
 
 export const ChatProvider = ({ children }: { children: ReactNode }) => {
   const [conversations, setConversations] = useState<Conversation[]>(() => {
@@ -258,7 +267,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
       requestedProvider: plan.requestedProvider,
       resolvedProvider: plan.resolvedProvider,
       fallbackReason: plan.fallbackReason,
-      weakGrounding: plan.answerType === 'fallback',
+      weakGrounding: plan.requiresWebGrounding ? false : plan.answerType === 'fallback',
       thinking: '',
     }));
 
@@ -333,8 +342,11 @@ Priorities:
           let fullThinking = '';
           let citationsList: string[] = [];
           let latestAnswerType = assistantMessage.answerType;
+          let latestWeakGrounding = assistantMessage.weakGrounding;
 
           if (reader) {
+            const parser = createSseParser();
+
             while (true) {
               const { done, value } = await reader.read();
               if (done) {
@@ -342,13 +354,9 @@ Priorities:
               }
 
               const chunk = decoder.decode(value, { stream: true });
-              for (const line of chunk.split('\n')) {
-                if (!line.startsWith('data: ') || line === 'data: [DONE]') {
-                  continue;
-                }
-
+              for (const line of parser.push(chunk)) {
                 try {
-                  const data = JSON.parse(line.slice(6));
+                  const data = JSON.parse(line);
                   if (data.error) {
                     fullContent += `\n\n**Error:** ${data.error}`;
                     updateMessage(conversationId!, assistantMessage.id, {
@@ -359,6 +367,7 @@ Priorities:
 
                   if (data.routing) {
                     latestAnswerType = data.routing.answerType;
+                    latestWeakGrounding = data.routing.weakGrounding;
                     updateMessage(conversationId!, assistantMessage.id, {
                       provider: data.routing.resolvedProvider,
                       model: data.model || assistantMessage.model,
@@ -390,7 +399,7 @@ Priorities:
                       citations: citationsList.map((url: string, index: number) => ({
                         id: index + 1,
                         url,
-                        domain: new URL(url).hostname.replace('www.', ''),
+                        domain: toCitationDomain(url),
                       })),
                     });
                   }
@@ -402,7 +411,7 @@ Priorities:
           }
 
           updateMessage(conversationId!, assistantMessage.id, {
-            weakGrounding: latestAnswerType === 'web-grounded' ? citationsList.length < 2 : latestAnswerType === 'fallback',
+            weakGrounding: latestWeakGrounding ?? (latestAnswerType === 'web-grounded' ? citationsList.length < 2 : latestAnswerType === 'fallback'),
           });
         } catch (error: any) {
           if (error.name === 'AbortError') {

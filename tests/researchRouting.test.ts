@@ -17,17 +17,17 @@ const availability = (overrides: Partial<ProviderAvailabilityMap> = {}): Provide
   openai: {
     configured: false,
     source: 'none',
-    supportsWebGrounding: false,
+    supportsWebGrounding: true,
   },
   anthropic: {
     configured: false,
     source: 'none',
-    supportsWebGrounding: false,
+    supportsWebGrounding: true,
   },
   gemini: {
     configured: false,
     source: 'none',
-    supportsWebGrounding: false,
+    supportsWebGrounding: true,
   },
   ...overrides,
 });
@@ -68,7 +68,7 @@ const tests: Array<{ name: string; run: () => void }> = [
           openai: {
             configured: true,
             source: 'environment',
-            supportsWebGrounding: false,
+            supportsWebGrounding: true,
           },
         }),
       });
@@ -80,43 +80,43 @@ const tests: Array<{ name: string; run: () => void }> = [
     },
   },
   {
-    name: 'resolveRoutingDecision routes research prompts to Perplexity when it is available',
+    name: 'resolveRoutingDecision keeps research on the requested provider when it supports web grounding',
     run: () => {
       const result = resolveRoutingDecision({
         mode: 'Research',
         content: 'Compare current STM32H7 and i.MX RT board pricing with sources.',
         requestedProvider: 'openai',
         availability: availability({
+          openai: {
+            configured: true,
+            source: 'environment',
+            supportsWebGrounding: true,
+          },
           perplexity: {
             configured: true,
             source: 'environment',
             supportsWebGrounding: true,
           },
-          openai: {
-            configured: true,
-            source: 'environment',
-            supportsWebGrounding: false,
-          },
         }),
       });
 
       assert.equal(result.requiresWebGrounding, true);
-      assert.equal(result.resolvedProvider, 'perplexity');
+      assert.equal(result.resolvedProvider, 'openai');
       assert.equal(result.answerType, 'web-grounded');
     },
   },
   {
-    name: 'resolveRoutingDecision falls back when Perplexity is unavailable but another provider is configured',
+    name: 'resolveRoutingDecision falls back to another web-capable provider when requested research provider is unavailable',
     run: () => {
       const result = resolveRoutingDecision({
         mode: 'Deep Research',
         content: 'Research the latest GaN controller ICs under 300 W.',
-        requestedProvider: 'perplexity',
+        requestedProvider: 'anthropic',
         availability: availability({
           openai: {
             configured: true,
             source: 'environment',
-            supportsWebGrounding: false,
+            supportsWebGrounding: true,
           },
         }),
       });
@@ -124,11 +124,11 @@ const tests: Array<{ name: string; run: () => void }> = [
       assert.equal(result.requiresWebGrounding, true);
       assert.equal(result.resolvedProvider, 'openai');
       assert.equal(result.answerType, 'fallback');
-      assert.match(result.fallbackReason ?? '', /Perplexity/i);
+      assert.match(result.fallbackReason ?? '', /web search enabled/i);
     },
   },
   {
-    name: 'resolveRoutingDecision fails fast when research routing has no configured providers',
+    name: 'resolveRoutingDecision fails fast when research routing has no configured web-capable providers',
     run: () => {
       const result = resolveRoutingDecision({
         mode: 'Compare Sources',
@@ -139,7 +139,7 @@ const tests: Array<{ name: string; run: () => void }> = [
 
       assert.equal(result.requiresWebGrounding, true);
       assert.equal(result.canProceed, false);
-      assert.match(result.errorMessage ?? '', /configure Perplexity/i);
+      assert.match(result.errorMessage ?? '', /web-capable provider/i);
     },
   },
   {
@@ -157,6 +157,7 @@ const tests: Array<{ name: string; run: () => void }> = [
       assert.equal(result.anthropic.configured, true);
       assert.equal(result.openai.configured, false);
       assert.equal(result.gemini.configured, false);
+      assert.equal(result.openai.supportsWebGrounding, true);
     },
   },
   {
@@ -178,7 +179,7 @@ const tests: Array<{ name: string; run: () => void }> = [
           openai: {
             configured: true,
             source: 'environment',
-            supportsWebGrounding: false,
+            supportsWebGrounding: true,
           },
         }),
       );

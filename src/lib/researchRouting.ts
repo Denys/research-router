@@ -42,24 +42,23 @@ const providerCapabilities: Record<Provider, { supportsWebGrounding: boolean; lo
     envKey: 'PPLX_API_KEY',
   },
   openai: {
-    supportsWebGrounding: false,
+    supportsWebGrounding: true,
     localKey: 'openai',
     envKey: 'OPENAI_API_KEY',
   },
   anthropic: {
-    supportsWebGrounding: false,
+    supportsWebGrounding: true,
     localKey: 'anthropic',
     envKey: 'ANTHROPIC_API_KEY',
   },
   gemini: {
-    supportsWebGrounding: false,
+    supportsWebGrounding: true,
     localKey: 'gemini',
     envKey: 'GEMINI_API_KEY',
   },
 };
 
 const providerOrder: Provider[] = ['perplexity', 'openai', 'anthropic', 'gemini'];
-const fallbackOrder: Provider[] = ['openai', 'anthropic', 'gemini'];
 const researchModes = new Set<Mode>(['Research', 'Deep Research', 'Compare Sources']);
 const researchKeywords = /\b(current|latest|recent|news|price|prices|law|laws|release|releases|schedule|schedules|compare|comparison|source|sources|citation|citations|web|research|update|updates)\b/i;
 const writingKeywords = /\b(write|rewrite|draft|email|format|brainstorm|polish|rephrase|edit)\b/i;
@@ -147,6 +146,10 @@ const firstConfiguredProvider = (availability: ProviderAvailabilityMap, provider
   return providers.find((provider) => availability[provider]?.configured);
 };
 
+const firstConfiguredWebProvider = (availability: ProviderAvailabilityMap, providers: Provider[]): Provider | undefined => {
+  return providers.find((provider) => availability[provider]?.configured && availability[provider]?.supportsWebGrounding);
+};
+
 export const resolveRoutingDecision = ({
   mode,
   content,
@@ -156,17 +159,17 @@ export const resolveRoutingDecision = ({
   const intent = classifyResearchIntent({ mode, content });
 
   if (intent.requiresWebGrounding) {
-    if (availability.perplexity.configured) {
+    if (availability[requestedProvider]?.configured && availability[requestedProvider]?.supportsWebGrounding) {
       return {
         canProceed: true,
         requiresWebGrounding: true,
         requestedProvider,
-        resolvedProvider: 'perplexity',
+        resolvedProvider: requestedProvider,
         answerType: 'web-grounded',
       };
     }
 
-    const fallbackProvider = firstConfiguredProvider(availability, fallbackOrder);
+    const fallbackProvider = firstConfiguredWebProvider(availability, providerOrder);
     if (fallbackProvider) {
       return {
         canProceed: true,
@@ -174,7 +177,7 @@ export const resolveRoutingDecision = ({
         requestedProvider,
         resolvedProvider: fallbackProvider,
         answerType: 'fallback',
-        fallbackReason: 'Perplexity is not configured, so this answer may be less web-grounded than requested.',
+        fallbackReason: `${requestedProvider} is not configured for this request, so research was routed through ${fallbackProvider} with web search enabled.`,
       };
     }
 
@@ -184,7 +187,7 @@ export const resolveRoutingDecision = ({
       requestedProvider,
       resolvedProvider: requestedProvider,
       answerType: 'fallback',
-      errorMessage: 'Research mode requires a web-grounded provider. Please configure Perplexity in Settings.',
+      errorMessage: 'Research mode requires a configured web-capable provider. Add a Perplexity, OpenAI, Anthropic, or Gemini key in Settings.',
     };
   }
 

@@ -4,6 +4,7 @@ import { GoogleGenAI } from '@google/genai';
 
 import type { APIKeys, Mode, Provider, SearchSource } from './src/types.ts';
 import { buildServerProviderStatus, resolveRoutingDecision } from './src/lib/researchRouting.ts';
+import { createSseParser } from './src/lib/sse.ts';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -41,7 +42,7 @@ const defaultModels: Record<Provider, string> = {
   gemini: 'gemini-3.1-pro-preview',
 };
 
-const fallbackProviderOrder: Provider[] = ['openai', 'anthropic', 'gemini'];
+const fallbackProviderOrder: Provider[] = ['perplexity', 'openai', 'anthropic', 'gemini'];
 
 const writeEvent = (res: express.Response, payload: Record<string, unknown>) => {
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -81,6 +82,19 @@ const resolveModel = (provider: Provider, requestedModel?: string): string => {
   }
 
   return activeModel;
+};
+
+const resolveApiModel = (provider: Provider, requestedModel: string, useWebSearch: boolean): string => {
+  if (useWebSearch && provider === 'openai') {
+    return 'gpt-5';
+  }
+
+  const resolvedModel = resolveModel(provider, requestedModel);
+  if (useWebSearch && provider === 'gemini' && (resolvedModel.includes('preview') || resolvedModel.startsWith('gemini-3'))) {
+    return 'gemini-2.5-pro';
+  }
+
+  return resolvedModel;
 };
 
 const withSourceInstructions = (messages: ChatMessage[], sources: SearchSource[] = [], shoppingResearch = false): ChatMessage[] => {
@@ -145,6 +159,91 @@ const collectUniqueCitations = (existing: string[], incoming: unknown): string[]
   return Array.from(merged);
 };
 
+const addCitation = (target: Set<string>, candidate: unknown) => {
+  if (typeof candidate === 'string' && candidate.trim()) {
+    target.add(candidate);
+  }
+};
+
+const extractOpenAICitations = (payload: any): string[] => {
+  const citations = new Set<string>();
+
+  for (const item of payload?.output ?? []) {
+    if (item?.type !== 'message') {
+      continue;
+    }
+
+    for (const part of item?.content ?? []) {
+      for (const annotation of part?.annotations ?? []) {
+        if (annotation?.type === 'url_citation') {
+          addCitation(citations, annotation.url);
+        }
+      }
+    }
+  }
+
+  return Array.from(citations);
+};
+
+const extractOpenAIText = (payload: any): string => {
+  if (typeof payload?.output_text === 'string' && payload.output_text.trim()) {
+    return payload.output_text;
+  }
+
+  const parts: string[] = [];
+  for (const item of payload?.output ?? []) {
+    if (item?.type !== 'message') {
+      continue;
+    }
+
+    for (const part of item?.content ?? []) {
+      if (typeof part?.text === 'string') {
+        parts.push(part.text);
+      }
+    }
+  }
+
+  return parts.join('');
+};
+
+const extractAnthropicCitations = (payload: any): string[] => {
+  const citations = new Set<string>();
+
+  for (const block of payload?.content ?? []) {
+    for (const citation of block?.citations ?? []) {
+      addCitation(citations, citation?.url);
+      addCitation(citations, citation?.source);
+      addCitation(citations, citation?.source?.url);
+    }
+  }
+
+  return Array.from(citations);
+};
+
+const extractAnthropicText = (payload: any): string => {
+  const parts: string[] = [];
+
+  for (const block of payload?.content ?? []) {
+    if (block?.type === 'text' && typeof block?.text === 'string') {
+      parts.push(block.text);
+    }
+  }
+
+  return parts.join('');
+};
+
+const extractGeminiCitations = (payload: any): string[] => {
+  const citations = new Set<string>();
+
+  for (const candidate of payload?.candidates ?? []) {
+    for (const chunk of candidate?.groundingMetadata?.groundingChunks ?? []) {
+      addCitation(citations, chunk?.web?.uri);
+    }
+  }
+
+  return Array.from(citations);
+};
+
 const streamPerplexity = async (
   res: express.Response,
   messages: ChatMessage[],
@@ -173,6 +272,8 @@ const streamPerplexity = async (
   const decoder = new TextDecoder();
 
   if (reader) {
+    const parser = createSseParser();
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
@@ -180,13 +281,9 @@ const streamPerplexity = async (
       }
 
       const chunk = decoder.decode(value, { stream: true });
-      for (const line of chunk.split('\n')) {
-        if (!line.startsWith('data: ') || line === 'data: [DONE]') {
-          continue;
-        }
-
+      for (const line of parser.push(chunk)) {
         try {
-          const data = JSON.parse(line.slice(6));
+          const data = JSON.parse(line);
           const text = data.choices?.[0]?.delta?.content || '';
           const nextCitations = collectUniqueCitations(citations, data.citations);
           citations.splice(0, citations.length, ...nextCitations);
@@ -206,6 +303,7 @@ const streamGemini = async (
   messages: ChatMessage[],
   apiKey: string,
   requestedModel: string,
+  useWebSearch = false,
 ): Promise<ProviderStreamResult> => {
   const ai = new GoogleGenAI({ apiKey });
   const systemInstruction = messages.find((message) => message.role === 'system')?.content;
@@ -213,6 +311,24 @@ const streamGemini = async (
     .filter((message) => message.role !== 'system')
     .map((message) => `${message.role}: ${message.content}`)
     .join('\n');
+
+  if (useWebSearch) {
+    const response = await ai.models.generateContent({
+      model: requestedModel,
+      contents: prompt,
+      config: {
+        systemInstruction,
+        tools: [{ googleSearch: {} }],
+      } as any,
+    });
+
+    const citations = extractGeminiCitations(response as any);
+    writeEvent(res, {
+      text: response.text,
+      citations,
+    });
+    return { citations };
+  }
 
   const responseStream = await ai.models.generateContentStream({
     model: requestedModel,
@@ -235,7 +351,42 @@ const streamOpenAI = async (
   apiKey: string,
   requestedModel: string,
   extendedThinking = false,
+  useWebSearch = false,
 ): Promise<ProviderStreamResult> => {
+  if (useWebSearch) {
+    const systemInstruction = messages.find((message) => message.role === 'system')?.content;
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: requestedModel,
+        instructions: systemInstruction,
+        input: messages
+          .filter((message) => message.role !== 'system')
+          .map((message) => ({ role: message.role, content: message.content })),
+        tools: [{ type: 'web_search' }],
+        tool_choice: 'auto',
+        include: ['web_search_call.action.sources'],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`OpenAI Error: ${response.statusText} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    const citations = extractOpenAICitations(data);
+    writeEvent(res, {
+      text: extractOpenAIText(data),
+      citations,
+    });
+    return { citations };
+  }
+
   const isReasoningModel = requestedModel.startsWith('o1') || requestedModel.startsWith('o3');
   const body: Record<string, unknown> = {
     model: requestedModel,
@@ -271,6 +422,8 @@ const streamOpenAI = async (
   const reader = response.body?.getReader();
   const decoder = new TextDecoder();
   if (reader) {
+    const parser = createSseParser();
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
@@ -278,13 +431,9 @@ const streamOpenAI = async (
       }
 
       const chunk = decoder.decode(value, { stream: true });
-      for (const line of chunk.split('\n')) {
-        if (!line.startsWith('data: ') || line === 'data: [DONE]') {
-          continue;
-        }
-
+      for (const line of parser.push(chunk)) {
         try {
-          const data = JSON.parse(line.slice(6));
+          const data = JSON.parse(line);
           writeEvent(res, { text: data.choices?.[0]?.delta?.content || '' });
         } catch {
           // Ignore partial chunks.
@@ -303,6 +452,7 @@ const streamAnthropic = async (
   requestedModel: string,
   extendedThinking = false,
   anthropicThinkingBudget = 2048,
+  useWebSearch = false,
 ): Promise<ProviderStreamResult> => {
   const systemPrompt = messages.find((message) => message.role === 'system')?.content;
   const history = messages
@@ -312,6 +462,29 @@ const streamAnthropic = async (
       content: message.content,
     }));
 
+  const body: Record<string, unknown> = {
+    model: requestedModel,
+    system: systemPrompt,
+    messages: history,
+    max_tokens: 4096,
+  };
+
+  if (useWebSearch) {
+    body.tools = [{
+      type: 'web_search_20250305',
+      name: 'web_search',
+      max_uses: 5,
+    }];
+  } else {
+    body.stream = true;
+    if (extendedThinking && requestedModel.includes('sonnet')) {
+      body.thinking = {
+        type: 'enabled',
+        budget_tokens: Math.min(Math.max(Number(anthropicThinkingBudget) || 2048, 1024), 8192),
+      };
+    }
+  }
+
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -319,30 +492,29 @@ const streamAnthropic = async (
       'anthropic-version': '2023-06-01',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model: requestedModel,
-      system: systemPrompt,
-      messages: history,
-      max_tokens: 4096,
-      stream: true,
-      ...(extendedThinking && requestedModel.includes('sonnet')
-        ? {
-            thinking: {
-              type: 'enabled',
-              budget_tokens: Math.min(Math.max(Number(anthropicThinkingBudget) || 2048, 1024), 8192),
-            },
-          }
-        : {}),
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
-    throw new Error(`Anthropic Error: ${response.status} ${response.statusText}`);
+    const errorText = await response.text();
+    throw new Error(`Anthropic Error: ${response.status} ${response.statusText} - ${errorText}`);
+  }
+
+  if (useWebSearch) {
+    const data = await response.json();
+    const citations = extractAnthropicCitations(data);
+    writeEvent(res, {
+      text: extractAnthropicText(data),
+      citations,
+    });
+    return { citations };
   }
 
   const reader = response.body?.getReader();
   const decoder = new TextDecoder();
   if (reader) {
+    const parser = createSseParser();
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) {
@@ -350,13 +522,9 @@ const streamAnthropic = async (
       }
 
       const chunk = decoder.decode(value, { stream: true });
-      for (const line of chunk.split('\n')) {
-        if (!line.startsWith('data: ')) {
-          continue;
-        }
-
+      for (const line of parser.push(chunk)) {
         try {
-          const data = JSON.parse(line.slice(6));
+          const data = JSON.parse(line);
           if (data.type === 'content_block_delta' && data.delta?.text) {
             writeEvent(res, { text: data.delta.text });
           }
@@ -378,16 +546,17 @@ const streamProviderResponse = async (
   apiKey: string,
   extendedThinking = false,
   anthropicThinkingBudget = 2048,
+  useWebSearch = false,
 ): Promise<ProviderStreamResult> => {
   switch (provider) {
     case 'perplexity':
       return streamPerplexity(res, messages, apiKey, model);
     case 'gemini':
-      return streamGemini(res, messages, apiKey, model);
+      return streamGemini(res, messages, apiKey, model, useWebSearch);
     case 'openai':
-      return streamOpenAI(res, messages, apiKey, model, extendedThinking);
+      return streamOpenAI(res, messages, apiKey, model, extendedThinking, useWebSearch);
     case 'anthropic':
-      return streamAnthropic(res, messages, apiKey, model, extendedThinking, anthropicThinkingBudget);
+      return streamAnthropic(res, messages, apiKey, model, extendedThinking, anthropicThinkingBudget, useWebSearch);
     default:
       throw new Error(`Provider ${provider} is not supported.`);
   }
@@ -478,53 +647,42 @@ async function startServer() {
         return;
       }
 
-      const resolvedProvider = routing.resolvedProvider;
-      const requestedModel = resolvedProvider === requestedProvider ? model || defaultModels[requestedProvider] : defaultModels[resolvedProvider];
-      const resolvedModel = resolveModel(resolvedProvider, requestedModel);
       const preparedMessages = withSourceInstructions(messages ?? [], sources, shoppingResearch);
-
-      writeEvent(res, {
-        routing: {
-          ...routing,
-          weakGrounding: routing.answerType === 'fallback',
-        },
-        model: requestedModel,
-      });
-
-      await maybeEmitThinking(res, resolvedProvider, requestedModel, extendedThinking);
-
-      let apiKey = getApiKey(resolvedProvider, mergedKeys);
       let activeRouting = routing;
-      let activeProvider = resolvedProvider;
-      let activeModel = resolvedModel;
+      let activeProvider = routing.resolvedProvider;
+      let activeModel = resolveApiModel(activeProvider, activeProvider === requestedProvider ? model || defaultModels[requestedProvider] : defaultModels[activeProvider], activeRouting.requiresWebGrounding);
+      let apiKey = getApiKey(activeProvider, mergedKeys);
 
-      if (!apiKey && routing.requiresWebGrounding) {
+      if (!apiKey && activeRouting.requiresWebGrounding) {
         const fallbackProvider = findFallbackProvider(mergedKeys);
         if (fallbackProvider) {
           activeProvider = fallbackProvider;
-          activeModel = resolveModel(fallbackProvider, defaultModels[fallbackProvider]);
           activeRouting = {
-            ...routing,
+            ...activeRouting,
             resolvedProvider: fallbackProvider,
             answerType: 'fallback',
-            fallbackReason: 'Perplexity is unavailable, so the request was answered by a secondary provider without guaranteed live web grounding.',
+            fallbackReason: 'The requested research provider became unavailable, so the request was rerouted through another provider with web search enabled.',
           };
+          activeModel = resolveApiModel(activeProvider, defaultModels[activeProvider], true);
           apiKey = getApiKey(fallbackProvider, mergedKeys);
-          writeEvent(res, {
-            routing: {
-              ...activeRouting,
-              weakGrounding: true,
-            },
-            model: defaultModels[fallbackProvider],
-          });
         }
       }
+
+      writeEvent(res, {
+        routing: {
+          ...activeRouting,
+          weakGrounding: activeRouting.requiresWebGrounding ? false : activeRouting.answerType === 'fallback',
+        },
+        model: activeModel,
+      });
 
       if (!apiKey) {
         writeEvent(res, { error: `No API key available for ${activeProvider}. Please configure it in Settings.` });
         res.end();
         return;
       }
+
+      await maybeEmitThinking(res, activeProvider, activeModel, extendedThinking);
 
       const result = await streamProviderResponse(
         res,
@@ -534,9 +692,10 @@ async function startServer() {
         apiKey,
         extendedThinking,
         anthropicThinkingBudget,
+        activeRouting.requiresWebGrounding,
       );
 
-      const weakGrounding = activeRouting.answerType === 'web-grounded'
+      const weakGrounding = activeRouting.requiresWebGrounding
         ? result.citations.length < 2
         : activeRouting.answerType === 'fallback';
 
