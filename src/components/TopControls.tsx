@@ -50,13 +50,13 @@ export const TopControls = () => {
     },
     {
       id: 'openai',
-      name: 'OpenAI',
+      name: 'GPT (OpenAI)',
       models: ['gpt-5.4-thinking', 'gpt-5.3-instant', 'gpt-5.2-thinking', 'gpt-5.2-instant'],
       advice: 'Supports web-search-backed research plus strong reasoning, coding, and formatting.',
     },
     {
       id: 'anthropic',
-      name: 'Anthropic',
+      name: 'Claude (Anthropic)',
       models: ['claude-4.6-sonnet', 'claude-4.6-opus', 'claude-4.5-haiku'],
       advice: 'Supports web-search-backed research with strong analysis and long-context writing.',
     },
@@ -65,6 +65,13 @@ export const TopControls = () => {
       name: 'Gemini',
       models: ['gemini-3.1-pro-preview', 'gemini-3-flash-preview', 'gemini-2.5-flash'],
       advice: 'Supports Google-backed search grounding and fast multimodal workflows.',
+    },
+
+    {
+      id: 'openrouter',
+      name: 'OpenRouter',
+      models: ['openai/gpt-4o-mini', 'anthropic/claude-3.5-sonnet', 'google/gemini-2.5-pro'],
+      advice: 'Access multiple routed models through one API key, useful when you want broad model choice.',
     },
   ];
 

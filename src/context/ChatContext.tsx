@@ -48,6 +48,7 @@ const defaultApiKeys: APIKeys = {
   openai: '',
   anthropic: '',
   gemini: '',
+  openrouter: '',
 };
 
 const defaultProviderStatus = buildServerProviderStatus({});
@@ -77,6 +78,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     openai: 'gpt-5.4-thinking',
     anthropic: 'claude-4.6-sonnet',
     gemini: 'gemini-3.1-pro-preview',
+    openrouter: 'openai/gpt-4o-mini',
   });
   const [selectedSources, setSelectedSources] = useState<SearchSource[]>(['web']);
   const [defaultMode, setDefaultMode] = useState<Mode>('Research');

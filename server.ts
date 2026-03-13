@@ -33,6 +33,7 @@ const defaultApiKeys: APIKeys = {
   openai: '',
   anthropic: '',
   gemini: '',
+  openrouter: '',
 };
 
 const defaultModels: Record<Provider, string> = {
@@ -40,9 +41,10 @@ const defaultModels: Record<Provider, string> = {
   openai: 'gpt-5.4-thinking',
   anthropic: 'claude-4.6-sonnet',
   gemini: 'gemini-3.1-pro-preview',
+  openrouter: 'openai/gpt-4o-mini',
 };
 
-const fallbackProviderOrder: Provider[] = ['perplexity', 'openai', 'anthropic', 'gemini'];
+const fallbackProviderOrder: Provider[] = ['perplexity', 'openai', 'anthropic', 'gemini', 'openrouter'];
 
 const writeEvent = (res: express.Response, payload: Record<string, unknown>) => {
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -60,6 +62,8 @@ const getApiKey = (provider: Provider, keys?: APIKeys): string | undefined => {
       return mergedKeys.anthropic || process.env.ANTHROPIC_API_KEY;
     case 'gemini':
       return mergedKeys.gemini || process.env.GEMINI_API_KEY;
+    case 'openrouter':
+      return mergedKeys.openrouter || process.env.OPENROUTER_API_KEY;
     default:
       return undefined;
   }
@@ -445,6 +449,69 @@ const streamOpenAI = async (
   return { citations: [] };
 };
 
+
+const streamOpenRouter = async (
+  res: express.Response,
+  messages: ChatMessage[],
+  apiKey: string,
+  requestedModel: string,
+  _useWebSearch = false,
+): Promise<ProviderStreamResult> => {
+  const model = requestedModel || defaultModels.openrouter;
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
+      'X-Title': 'Research Router',
+    },
+    body: JSON.stringify({
+      model,
+      messages: messages.map((message) => ({ role: message.role, content: message.content })),
+      stream: true,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenRouter Error: ${response.status} ${response.statusText}`);
+  }
+
+  const citations: string[] = [];
+  const reader = response.body?.getReader();
+  const decoder = new TextDecoder();
+
+  if (reader) {
+    const parser = createSseParser();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      const chunk = decoder.decode(value, { stream: true });
+      for (const line of parser.push(chunk)) {
+        if (line === '[DONE]') {
+          continue;
+        }
+
+        try {
+          const data = JSON.parse(line);
+          const text = data.choices?.[0]?.delta?.content || '';
+          const nextCitations = collectUniqueCitations(citations, data.citations);
+          citations.splice(0, citations.length, ...nextCitations);
+          writeEvent(res, { text, citations });
+        } catch {
+          // Ignore partial chunks.
+        }
+      }
+    }
+  }
+
+  return { citations };
+};
+
 const streamAnthropic = async (
   res: express.Response,
   messages: ChatMessage[],
@@ -555,6 +622,8 @@ const streamProviderResponse = async (
       return streamGemini(res, messages, apiKey, model, useWebSearch);
     case 'openai':
       return streamOpenAI(res, messages, apiKey, model, extendedThinking, useWebSearch);
+    case 'openrouter':
+      return streamOpenRouter(res, messages, apiKey, model, useWebSearch);
     case 'anthropic':
       return streamAnthropic(res, messages, apiKey, model, extendedThinking, anthropicThinkingBudget, useWebSearch);
     default:
@@ -626,6 +695,7 @@ async function startServer() {
         OPENAI_API_KEY: getApiKey('openai', mergedKeys),
         ANTHROPIC_API_KEY: getApiKey('anthropic', mergedKeys),
         GEMINI_API_KEY: getApiKey('gemini', mergedKeys),
+        OPENROUTER_API_KEY: getApiKey('openrouter', mergedKeys),
       });
       const latestUserMessage = [...(messages ?? [])].reverse().find((message) => message.role === 'user')?.content || '';
       const routing = resolveRoutingDecision({

@@ -33,9 +33,10 @@ export const SettingsModal = () => {
 
   const providers = [
     { id: 'pplx', providerId: 'perplexity', name: 'Perplexity API Key', placeholder: 'pplx-...' },
-    { id: 'openai', providerId: 'openai', name: 'OpenAI API Key', placeholder: 'sk-...' },
-    { id: 'anthropic', providerId: 'anthropic', name: 'Anthropic API Key', placeholder: 'sk-ant-...' },
+    { id: 'openai', providerId: 'openai', name: 'GPT (OpenAI) API Key', placeholder: 'sk-...' },
+    { id: 'anthropic', providerId: 'anthropic', name: 'Claude (Anthropic) API Key', placeholder: 'sk-ant-...' },
     { id: 'gemini', providerId: 'gemini', name: 'Gemini API Key', placeholder: 'AIza...' },
+    { id: 'openrouter', providerId: 'openrouter', name: 'OpenRouter API Key', placeholder: 'sk-or-...' },
   ] as const;
 
   return (
