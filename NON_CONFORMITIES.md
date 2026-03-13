@@ -17,8 +17,8 @@
 4. **Research router policy is incomplete vs original spec**.
    - Missing from implementation: fallback warning badge semantics, robust routing classifier for "current/latest/news/prices/laws/releases" signals, and explicit web-grounded vs fallback labeling logic tied to actual retrieval.
 
-5. **Provider coverage is narrower than requested in original product brief**.
-   - Missing adapters/UI for OpenRouter and Groq.
+5. **Provider scope clarification**.
+   - OpenRouter and Groq are intentionally excluded by product decision and are therefore not treated as non-conformities for this implementation scope.
 
 ## Fixes completed in this pass
 
