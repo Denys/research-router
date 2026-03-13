@@ -2,14 +2,14 @@
 
 Research Router is a production-minded research chat app for comparing provider-backed answers while being explicit about what is web-grounded, what is model-only, and when the system had to fall back.
 
-The current implementation supports `perplexity`, `openai`, `anthropic`, and `gemini`. OpenRouter and Groq are intentionally out of scope for this repository right now.
+The current implementation supports `perplexity`, `openai` (GPT), `anthropic` (Claude), `gemini`, and `openrouter`.
 
 ## Product Overview
 
 Research Router is optimized for two kinds of work:
 
 - Web-grounded research, where the app routes research-oriented prompts toward Perplexity and surfaces citations directly in the UI.
-- Model-only tasks, where OpenAI, Anthropic, and Gemini remain available for writing, formatting, and general reasoning.
+- Model-only tasks, where OpenAI (GPT), Anthropic (Claude), Gemini, and OpenRouter remain available for writing, formatting, and general reasoning.
 
 This cycle adds explicit routing labels so each assistant response can show:
 
@@ -33,7 +33,7 @@ This cycle adds explicit routing labels so each assistant response can show:
 ### Current provider behavior
 
 - `perplexity`: preferred for research-mode and web-grounded requests.
-- `openai`, `anthropic`, `gemini`: available for model-only tasks and fallback responses.
+- `openai` (GPT), `anthropic` (Claude), `gemini`, `openrouter`: available for model-only tasks and fallback responses.
 - Research-oriented prompts are routed toward Perplexity first when it is configured.
 - If Perplexity is unavailable, the backend can mark a degraded answer as `fallback` and explain why.
 
@@ -41,7 +41,7 @@ This cycle adds explicit routing labels so each assistant response can show:
 
 ### Prerequisites
 
-- Node.js 24 or newer is recommended.
+- Node.js 20 or newer is recommended.
 
 ### Install and run
 
@@ -62,7 +62,7 @@ The server runs on `http://localhost:3000` by default.
 Research Router merges two key sources:
 
 - Browser-stored keys saved from the Settings modal.
-- Server environment variables such as `PPLX_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `GEMINI_API_KEY`.
+- Server environment variables such as `PPLX_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, and `OPENROUTER_API_KEY`.
 
 The UI now reflects whether each provider is configured from:
 
@@ -117,3 +117,29 @@ With routing correctness and labeling now in place, the next implementation cycl
 - `npm run test`
 - `npm run lint`
 - `npm run build`
+
+
+### Run on Windows (PowerShell)
+
+1. Install Node.js 20+ and open **PowerShell** in the project folder.
+2. Install dependencies:
+
+```powershell
+npm install
+```
+
+3. (Optional) Create a local env file and set provider keys:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Then edit `.env` and set any keys you plan to use (`PPLX_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`).
+
+4. Start the app:
+
+```powershell
+npm run dev
+```
+
+5. Open `http://localhost:3000` in your browser.

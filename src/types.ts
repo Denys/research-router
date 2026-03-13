@@ -1,4 +1,4 @@
-export type Provider = 'perplexity' | 'openai' | 'anthropic' | 'gemini';
+export type Provider = 'perplexity' | 'openai' | 'anthropic' | 'gemini' | 'openrouter';
 export type Mode = 'Quick Answer' | 'Research' | 'Deep Research' | 'Compare Sources';
 export type SearchSource = 'web' | 'social' | 'academic' | 'github' | 'notebooklm' | 'shopping';
 export type ProviderStatusSource = 'none' | 'local' | 'environment' | 'both';
@@ -51,4 +51,5 @@ export interface APIKeys {
   openai: string;
   anthropic: string;
   gemini: string;
+  openrouter: string;
 }

@@ -29,6 +29,11 @@ const availability = (overrides: Partial<ProviderAvailabilityMap> = {}): Provide
     source: 'none',
     supportsWebGrounding: true,
   },
+  openrouter: {
+    configured: false,
+    source: 'none',
+    supportsWebGrounding: true,
+  },
   ...overrides,
 });
 
@@ -150,6 +155,7 @@ const tests: Array<{ name: string; run: () => void }> = [
         OPENAI_API_KEY: '',
         ANTHROPIC_API_KEY: 'anthropic-secret',
         GEMINI_API_KEY: undefined,
+        OPENROUTER_API_KEY: '',
       });
 
       assert.equal(result.perplexity.configured, true);
@@ -157,6 +163,7 @@ const tests: Array<{ name: string; run: () => void }> = [
       assert.equal(result.anthropic.configured, true);
       assert.equal(result.openai.configured, false);
       assert.equal(result.gemini.configured, false);
+      assert.equal(result.openrouter.configured, false);
       assert.equal(result.openai.supportsWebGrounding, true);
     },
   },
@@ -169,6 +176,7 @@ const tests: Array<{ name: string; run: () => void }> = [
           openai: '',
           anthropic: '',
           gemini: 'local-gemini',
+          openrouter: '',
         },
         availability({
           perplexity: {

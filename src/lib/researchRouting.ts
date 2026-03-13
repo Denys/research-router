@@ -56,9 +56,14 @@ const providerCapabilities: Record<Provider, { supportsWebGrounding: boolean; lo
     localKey: 'gemini',
     envKey: 'GEMINI_API_KEY',
   },
+  openrouter: {
+    supportsWebGrounding: true,
+    localKey: 'openrouter',
+    envKey: 'OPENROUTER_API_KEY',
+  },
 };
 
-const providerOrder: Provider[] = ['perplexity', 'openai', 'anthropic', 'gemini'];
+const providerOrder: Provider[] = ['perplexity', 'openai', 'anthropic', 'gemini', 'openrouter'];
 const researchModes = new Set<Mode>(['Research', 'Deep Research', 'Compare Sources']);
 const researchKeywords = /\b(current|latest|recent|news|price|prices|law|laws|release|releases|schedule|schedules|compare|comparison|source|sources|citation|citations|web|research|update|updates)\b/i;
 const writingKeywords = /\b(write|rewrite|draft|email|format|brainstorm|polish|rephrase|edit)\b/i;
@@ -187,7 +192,7 @@ export const resolveRoutingDecision = ({
       requestedProvider,
       resolvedProvider: requestedProvider,
       answerType: 'fallback',
-      errorMessage: 'Research mode requires a configured web-capable provider. Add a Perplexity, OpenAI, Anthropic, or Gemini key in Settings.',
+      errorMessage: 'Research mode requires a configured web-capable provider. Add a Perplexity, GPT (OpenAI), Claude (Anthropic), Gemini, or OpenRouter key in Settings.',
     };
   }
 
