@@ -35,7 +35,7 @@ async function startServer() {
 
   app.post('/api/chat', async (req, res) => {
     try {
-      const { messages, provider, model, mode, sources, keys, extendedThinking, shoppingResearch } = req.body;
+      const { messages, provider, model, mode, sources, keys, extendedThinking, shoppingResearch, anthropicThinkingBudget } = req.body;
       
       // Basic routing logic
       const activeProvider = provider || 'perplexity';
@@ -270,7 +270,7 @@ async function startServer() {
             ...(extendedThinking && realModel.includes('sonnet') ? {
               thinking: {
                 type: "enabled",
-                budget_tokens: 2048
+                budget_tokens: Math.min(Math.max(Number(anthropicThinkingBudget) || 2048, 1024), 8192)
               }
             } : {})
           }),

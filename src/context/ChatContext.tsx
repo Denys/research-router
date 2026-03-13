@@ -15,6 +15,7 @@ interface ChatContextType {
   isRightDrawerOpen: boolean;
   extendedThinking: boolean;
   shoppingResearch: boolean;
+  anthropicThinkingBudget: number;
   isGenerating: boolean;
   setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>;
   setActiveConversationId: (id: string | null) => void;
@@ -27,6 +28,7 @@ interface ChatContextType {
   setIsRightDrawerOpen: (isOpen: boolean) => void;
   setExtendedThinking: (value: boolean) => void;
   setShoppingResearch: (value: boolean) => void;
+  setAnthropicThinkingBudget: (value: number) => void;
   createNewChat: () => void;
   sendMessage: (content: string) => Promise<void>;
   updateMessage: (convId: string, msgId: string, updates: Partial<Message>) => void;
@@ -62,6 +64,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
   const [isRightDrawerOpen, setIsRightDrawerOpen] = useState(false);
   const [extendedThinking, setExtendedThinking] = useState(false);
   const [shoppingResearch, setShoppingResearch] = useState(false);
+  const [anthropicThinkingBudget, setAnthropicThinkingBudget] = useState(2048);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const abortControllersRef = useRef<AbortController[]>([]);
@@ -171,7 +174,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
     };
 
     // Create an assistant message for each selected provider
-    const providersToUse: Provider[] = currentConv.providers.length > 0 ? currentConv.providers : ['perplexity'];
+    const providersToUse: Provider[] = selectedProviders.length > 0 ? selectedProviders : ['perplexity'];
     const assistantMessages = providersToUse.map(p => ({
       id: uuidv4(),
       role: 'assistant' as const,
@@ -187,6 +190,7 @@ export const ChatProvider = ({ children }: { children: ReactNode }) => {
       if (c.id !== convId) return c;
       return {
         ...c,
+        providers: providersToUse,
         title: c.messages.length === 0 ? content.slice(0, 30) + (content.length > 30 ? '...' : '') : c.title,
         updatedAt: Date.now(),
         messages: [...c.messages, userMsg, ...assistantMessages]
@@ -232,7 +236,8 @@ Priorities:
             sources: selectedSources,
             keys: apiKeys,
             extendedThinking,
-            shoppingResearch
+            shoppingResearch,
+            anthropicThinkingBudget
           }),
           signal: controller.signal
         });
@@ -301,10 +306,10 @@ Priorities:
     <ChatContext.Provider value={{
       conversations, activeConversationId, activeConversation, apiKeys, 
       selectedProviders, selectedModels, selectedSources, defaultMode, isSettingsOpen, isRightDrawerOpen,
-      extendedThinking, shoppingResearch, isGenerating,
+      extendedThinking, shoppingResearch, anthropicThinkingBudget, isGenerating,
       setConversations, setActiveConversationId, setApiKeys, 
       setSelectedProviders, setSelectedModels, setSelectedSources, setDefaultMode, setIsSettingsOpen, setIsRightDrawerOpen,
-      setExtendedThinking, setShoppingResearch,
+      setExtendedThinking, setShoppingResearch, setAnthropicThinkingBudget,
       createNewChat, sendMessage, updateMessage, optimizePrompt, stopGeneration, appendInstruction
     }}>
       {children}

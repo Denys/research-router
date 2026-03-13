@@ -8,9 +8,11 @@ export const TopControls = () => {
   const { 
     selectedProviders, setSelectedProviders, 
     selectedModels, setSelectedModels,
+    apiKeys,
     defaultMode, setDefaultMode, 
     setIsSettingsOpen,
-    extendedThinking, setExtendedThinking
+    extendedThinking, setExtendedThinking,
+    anthropicThinkingBudget, setAnthropicThinkingBudget
   } = useChat();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -54,6 +56,16 @@ export const TopControls = () => {
   ];
 
   const toggleProvider = (providerId: Provider) => {
+    const keyAvailable = providerId === 'perplexity'
+      ? Boolean(apiKeys.pplx)
+      : providerId === 'openai'
+      ? Boolean(apiKeys.openai)
+      : providerId === 'anthropic'
+      ? Boolean(apiKeys.anthropic)
+      : Boolean(apiKeys.gemini);
+
+    if (!keyAvailable) return;
+
     if (selectedProviders.includes(providerId)) {
       if (selectedProviders.length > 1) {
         setSelectedProviders(selectedProviders.filter(p => p !== providerId));
@@ -97,8 +109,15 @@ export const TopControls = () => {
               <div className="max-h-96 overflow-y-auto p-2 space-y-1">
                 {providers.map(p => {
                   const isSelected = selectedProviders.includes(p.id);
+                  const keyAvailable = p.id === 'perplexity'
+                    ? Boolean(apiKeys.pplx)
+                    : p.id === 'openai'
+                    ? Boolean(apiKeys.openai)
+                    : p.id === 'anthropic'
+                    ? Boolean(apiKeys.anthropic)
+                    : Boolean(apiKeys.gemini);
                   return (
-                    <div key={p.id} className={clsx("p-3 rounded-lg border transition-all", isSelected ? "border-indigo-200 bg-indigo-50/50" : "border-transparent hover:bg-slate-50")}>
+                    <div key={p.id} className={clsx("p-3 rounded-lg border transition-all", isSelected ? "border-indigo-200 bg-indigo-50/50" : "border-transparent hover:bg-slate-50", !keyAvailable && "opacity-60")}>
                       <div className="flex items-center justify-between mb-2 cursor-pointer" onClick={() => toggleProvider(p.id)}>
                         <div className="flex items-center gap-2">
                           <div className={clsx("w-4 h-4 rounded flex items-center justify-center border", isSelected ? "bg-indigo-600 border-indigo-600 text-white" : "border-slate-300 bg-white")}>
@@ -109,8 +128,11 @@ export const TopControls = () => {
                       </div>
                       
                       <p className="text-xs text-slate-500 mb-3 ml-6">{p.advice}</p>
+                      {!keyAvailable && (
+                        <p className="text-[10px] text-amber-600 mb-2 ml-6">Add API key in Settings to enable this provider.</p>
+                      )}
                       
-                      {isSelected && (
+                      {isSelected && keyAvailable && (
                         <div className="ml-6 mt-2 space-y-3">
                           <select
                             value={selectedModels[p.id]}
@@ -123,28 +145,48 @@ export const TopControls = () => {
                           </select>
                           
                           {((p.id === 'openai' && selectedModels[p.id]?.includes('thinking')) || p.id === 'anthropic') && (
-                            <div className="flex items-center justify-between pt-1">
-                              <div className="flex flex-col">
-                                <span className="text-xs font-medium text-slate-700">Extended thinking</span>
-                                <span className="text-[10px] text-slate-500">Think longer for complex tasks</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setExtendedThinking(!extendedThinking)}
-                                className={clsx(
-                                  "relative inline-flex h-4 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2",
-                                  extendedThinking ? "bg-indigo-600" : "bg-slate-200"
-                                )}
-                              >
-                                <span
-                                  aria-hidden="true"
+                            <>
+                              <div className="flex items-center justify-between pt-1">
+                                <div className="flex flex-col">
+                                  <span className="text-xs font-medium text-slate-700">Extended thinking</span>
+                                  <span className="text-[10px] text-slate-500">Think longer for complex tasks</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setExtendedThinking(!extendedThinking)}
                                   className={clsx(
-                                    "pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
-                                    extendedThinking ? "translate-x-4" : "translate-x-0"
+                                    "relative inline-flex h-4 w-8 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2",
+                                    extendedThinking ? "bg-indigo-600" : "bg-slate-200"
                                   )}
-                                />
-                              </button>
-                            </div>
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    className={clsx(
+                                      "pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                      extendedThinking ? "translate-x-4" : "translate-x-0"
+                                    )}
+                                  />
+                                </button>
+                              </div>
+
+                              {p.id === 'anthropic' && (
+                                <div className="pt-1">
+                                  <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
+                                    <span>Thinking budget</span>
+                                    <span>{anthropicThinkingBudget} tokens</span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min={1024}
+                                    max={8192}
+                                    step={512}
+                                    value={anthropicThinkingBudget}
+                                    onChange={(e) => setAnthropicThinkingBudget(Number(e.target.value))}
+                                    className="w-full h-1.5 accent-indigo-600"
+                                  />
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
                       )}
