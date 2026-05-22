@@ -3,12 +3,27 @@ version = 1
 name = "research-router"
 
 [setup]
-script = ""
+script = '''
+npm install
+'''
 
 [[actions]]
-name = "Run"
+name = "Dev"
 icon = "run"
 command = '''
-npm install
 npm run dev
+'''
+
+[[actions]]
+name = "Test"
+icon = "run"
+command = '''
+npm test
+'''
+
+[[actions]]
+name = "Build"
+icon = "run"
+command = '''
+npm run build
 '''
